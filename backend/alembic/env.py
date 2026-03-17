@@ -13,9 +13,9 @@ if config.config_file_name is not None:
 config.set_main_option("sqlalchemy.url", settings.database_url_sync)
 
 # Import all models here so Alembic can detect them for autogenerate
-# from app.models import Base
-# target_metadata = Base.metadata
-target_metadata = None
+from app.models import Base  # noqa: E402
+
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:

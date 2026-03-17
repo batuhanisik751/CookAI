@@ -6,13 +6,13 @@
 
 ## Current Status
 
-**Active Phase:** Phase 1 — Project Setup & Foundation
+**Active Phase:** Phase 4 — Ingredient Substitution Engine
 
 | Phase | Status |
 |-------|--------|
-| 1. Project Setup & Foundation | In Progress |
-| 2. Video Ingestion Pipeline | Not Started |
-| 3. AI-Powered Recipe Extraction | Not Started |
+| 1. Project Setup & Foundation | Complete |
+| 2. Video Ingestion Pipeline | Complete |
+| 3. AI-Powered Recipe Extraction | Complete |
 | 4. Ingredient Substitution Engine | Not Started |
 | 5. Backend API Design & Implementation | Not Started |
 | 6. Frontend — Mobile UI | Not Started |
@@ -37,22 +37,22 @@
 - **Deployment:** Docker containers (target platform TBD — evaluate Railway, Fly.io, or AWS ECS)
 
 ### 1.2 — Initialize Project Structure
-- [ ] Monorepo with `backend/` and `frontend/` at the root
-- [ ] Configure linting: Ruff (backend), ESLint (frontend)
-- [ ] Configure formatting: Black (backend), Prettier (frontend)
-- [ ] TypeScript for frontend, type hints for all Python code
-- [ ] Add `.env.example` with required environment variables
+- [x] Monorepo with `backend/` and `frontend/` at the root
+- [x] Configure linting: Ruff (backend), ESLint (frontend)
+- [x] Configure formatting: Black (backend), Prettier (frontend)
+- [x] TypeScript for frontend, type hints for all Python code
+- [x] Add `.env.example` with required environment variables
 - [ ] Set up Git branching strategy (main → dev → feature branches)
 
-### 1.3 — CI/CD Pipeline
+### 1.3 — CI/CD Pipeline (Deferred — no deployment yet)
 - [ ] GitHub Actions for lint, test, and build on every PR
 - [ ] Automated deployment to staging on merge to `dev`
 - [ ] Production deploy on merge to `main`
 
 ### 1.4 — Development Environment
-- [ ] Docker Compose for local services (Postgres, Redis)
+- [x] Docker Compose for local services (Postgres, Redis)
 - [ ] Seed scripts for test data
-- [ ] Hot reload for both frontend and backend
+- [x] Hot reload for both frontend and backend
 
 **Deliverable:** Empty but fully scaffolded project that builds, lints, and deploys a "hello world" to staging.
 
@@ -61,28 +61,32 @@
 ## Phase 2: Video Ingestion Pipeline
 
 ### 2.1 — Video URL Input & Validation
-- [ ] Accept TikTok and Instagram Reels URLs
-- [ ] Validate URL format and platform detection (regex + HEAD request check)
-- [ ] Normalize URLs (strip tracking params, resolve redirects/short links)
-- [ ] Return clear error messages for unsupported or invalid URLs
+- [x] Accept TikTok and Instagram Reels URLs
+- [x] Validate URL format and platform detection (regex + HEAD request check)
+- [x] Normalize URLs (strip tracking params, resolve redirects/short links)
+- [x] Return clear error messages for unsupported or invalid URLs
+- [x] SSRF prevention (hostname allowlist, private IP rejection)
 
 ### 2.2 — Video Download Service
-- [ ] Integrate `yt-dlp` as a subprocess or Python library to download videos
-- [ ] Handle platform-specific quirks (TikTok watermarks, Instagram login walls)
-- [ ] Store downloaded videos temporarily (local disk or S3 with TTL)
-- [ ] Implement retry logic with exponential backoff for transient failures
-- [ ] Rate-limit downloads to avoid IP bans
+- [x] Integrate `yt-dlp` as Python library to download videos (no shell injection risk)
+- [x] Handle platform-specific quirks (TikTok watermarks, Instagram login walls)
+- [x] Store downloaded videos temporarily (local disk with TTL cleanup)
+- [x] Implement retry logic with exponential backoff for transient failures
+- [x] Duration check — reject videos exceeding 300s limit
 
 ### 2.3 — Media Extraction
-- [ ] **Audio extraction:** FFmpeg to pull audio track → WAV/MP3 for transcription
-- [ ] **Frame extraction:** FFmpeg to sample key frames (e.g., 1 frame/second or scene-change detection)
-- [ ] **Metadata extraction:** Duration, resolution, creator handle, caption text (from yt-dlp metadata)
-- [ ] Store extracted assets alongside the original video with a shared job ID
+- [x] **Audio extraction:** FFmpeg to pull audio track → 16kHz mono WAV for Whisper
+- [x] **Frame extraction:** FFmpeg to sample key frames (1 frame/second configurable)
+- [x] **Metadata extraction:** Duration, resolution, creator handle, caption text (from yt-dlp + ffprobe)
+- [x] Store extracted assets alongside the original video with a shared job ID
+- [x] Path validation to prevent traversal attacks
 
 ### 2.4 — Job Queue & Status Tracking
-- [ ] Use Celery with Redis as message broker for async job processing
-- [ ] Job lifecycle: `pending → downloading → processing → analyzing → complete / failed`
-- [ ] Expose a status endpoint so the frontend can poll or subscribe via WebSocket
+- [x] Use Celery with Redis as message broker for async job processing
+- [x] Job lifecycle: `pending → validating → downloading → extracting → complete / failed`
+- [x] Expose status endpoint (`GET /api/jobs/{id}`) for frontend polling
+- [x] Cache check — same URL returns existing completed job
+- [x] Periodic cleanup of expired media (Celery beat, 24h TTL)
 
 **Deliverable:** Given a TikTok/IG URL, the system downloads the video, extracts audio + frames + metadata, and reports job status.
 
@@ -91,19 +95,19 @@
 ## Phase 3: AI-Powered Recipe Extraction
 
 ### 3.1 — Audio Transcription
-- [ ] Send extracted audio to Whisper (local model or API)
-- [ ] Handle multiple languages — detect language and transcribe accordingly
-- [ ] Clean up transcript: remove filler words, normalize measurements ("a cup" → "1 cup")
-- [ ] Store raw and cleaned transcripts
+- [x] Send extracted audio to Whisper (local model or API)
+- [x] Handle multiple languages — detect language and transcribe accordingly
+- [x] Clean up transcript: remove filler words, normalize measurements ("a cup" → "1 cup")
+- [x] Store raw and cleaned transcripts
 
 ### 3.2 — Visual Analysis
-- [ ] Send sampled key frames to Claude (vision capability)
-- [ ] Prompt the model to identify: ingredients visible on screen, cooking techniques, equipment used, plating/presentation
-- [ ] Correlate visual observations with transcript timestamps
+- [x] Send sampled key frames to Claude (vision capability)
+- [x] Prompt the model to identify: ingredients visible on screen, cooking techniques, equipment used, plating/presentation
+- [x] Correlate visual observations with transcript timestamps
 
 ### 3.3 — Recipe Synthesis (Core LLM Pipeline)
-- [ ] Combine transcript + visual analysis + video metadata (caption, hashtags) into a single context
-- [ ] Send to Claude API with a structured prompt requesting:
+- [x] Combine transcript + visual analysis + video metadata (caption, hashtags) into a single context
+- [x] Send to Claude API with a structured prompt requesting:
   - **Recipe title** (inferred from content)
   - **Servings estimate**
   - **Prep time / Cook time estimates**
@@ -111,12 +115,12 @@
   - **Step-by-step instructions** (numbered, clear, actionable)
   - **Difficulty level** (easy / medium / hard)
   - **Cuisine tags** (e.g., Italian, Korean, Mexican)
-- [ ] Use structured output (JSON mode) to ensure consistent parsing
-- [ ] Implement validation: check that all mentioned ingredients appear in steps, flag inconsistencies
+- [x] Use structured output (JSON mode) to ensure consistent parsing
+- [x] Implement validation: check that all mentioned ingredients appear in steps, flag inconsistencies
 
 ### 3.4 — Confidence Scoring & Human Review Flags
-- [ ] Assign confidence scores to extracted fields (high/medium/low)
-- [ ] Flag recipes where the AI is uncertain (e.g., quantities unclear, steps ambiguous)
+- [x] Assign confidence scores to extracted fields (high/medium/low)
+- [x] Flag recipes where the AI is uncertain (e.g., quantities unclear, steps ambiguous)
 - [ ] Allow users to report errors or suggest edits (future feature hook)
 
 **Deliverable:** Given a downloaded video's assets, produce a complete structured recipe in JSON with title, ingredients, steps, and metadata.
