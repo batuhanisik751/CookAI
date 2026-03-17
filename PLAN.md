@@ -6,13 +6,13 @@
 
 ## Current Status
 
-**Active Phase:** Phase 4 — Ingredient Substitution Engine
+**Active Phase:** Phase 2 — Reworking pipeline to caption-only extraction (no video download)
 
 | Phase | Status |
 |-------|--------|
 | 1. Project Setup & Foundation | Complete |
-| 2. Video Ingestion Pipeline | Complete |
-| 3. AI-Powered Recipe Extraction | Complete |
+| 2. Metadata & Transcript Extraction | Needs Rework (switching from video download to caption-only) |
+| 3. AI-Powered Recipe Extraction | Needs Rework (removing visual analysis, single LLM call) |
 | 4. Ingredient Substitution Engine | Not Started |
 | 5. Backend API Design & Implementation | Not Started |
 | 6. Frontend — Mobile UI | Not Started |
@@ -31,8 +31,7 @@
 - **Database:** PostgreSQL (structured recipe data) + Redis (caching & job queues)
 - **ORM / Migrations:** SQLAlchemy + Alembic
 - **AI/LLM:** Claude API (Anthropic) for recipe extraction, summarization, and substitution logic
-- **Video Processing:** yt-dlp (video downloading), FFmpeg (frame extraction / audio extraction)
-- **Speech-to-Text:** Whisper (OpenAI) — local model or API
+- **Metadata & Captions:** yt-dlp (extract subtitles, captions, and video metadata — no video download)
 - **Task Queue:** Celery + Redis as broker
 - **Deployment:** Docker containers (target platform TBD — evaluate Railway, Fly.io, or AWS ECS)
 
@@ -58,7 +57,7 @@
 
 ---
 
-## Phase 2: Video Ingestion Pipeline
+## Phase 2: Metadata & Transcript Extraction
 
 ### 2.1 — Video URL Input & Validation
 - [x] Accept TikTok and Instagram Reels URLs
@@ -67,47 +66,37 @@
 - [x] Return clear error messages for unsupported or invalid URLs
 - [x] SSRF prevention (hostname allowlist, private IP rejection)
 
-### 2.2 — Video Download Service
-- [x] Integrate `yt-dlp` as Python library to download videos (no shell injection risk)
-- [x] Handle platform-specific quirks (TikTok watermarks, Instagram login walls)
-- [x] Store downloaded videos temporarily (local disk with TTL cleanup)
-- [x] Implement retry logic with exponential backoff for transient failures
-- [x] Duration check — reject videos exceeding 300s limit
+### 2.2 — Caption & Metadata Extraction (Replaces Video Download)
+- [ ] Use `yt-dlp` with `--write-subs --write-auto-subs --skip-download` to extract captions without downloading video
+- [ ] Extract video metadata: title, creator handle, description/caption text, hashtags, duration
+- [ ] Handle platform-specific subtitle formats (SRT, VTT, JSON) and normalize to plain text
+- [ ] Fallback chain: manual captions → auto-generated captions → description-only mode
+- [ ] Retry logic with exponential backoff for transient failures
+- [ ] Duration check — reject videos exceeding 300s limit (from metadata, no download needed)
 
-### 2.3 — Media Extraction
-- [x] **Audio extraction:** FFmpeg to pull audio track → 16kHz mono WAV for Whisper
-- [x] **Frame extraction:** FFmpeg to sample key frames (1 frame/second configurable)
-- [x] **Metadata extraction:** Duration, resolution, creator handle, caption text (from yt-dlp + ffprobe)
-- [x] Store extracted assets alongside the original video with a shared job ID
-- [x] Path validation to prevent traversal attacks
+### 2.3 — Transcript Cleanup
+- [ ] Parse and merge subtitle segments into a continuous transcript
+- [ ] Remove duplicate/overlapping subtitle segments
+- [ ] Clean up auto-caption artifacts: filler words, timing stutters, misheard cooking terms
+- [ ] Normalize measurements ("a cup" → "1 cup", "half a teaspoon" → "1/2 tsp")
+- [ ] Store raw and cleaned transcripts
 
 ### 2.4 — Job Queue & Status Tracking
 - [x] Use Celery with Redis as message broker for async job processing
-- [x] Job lifecycle: `pending → validating → downloading → extracting → complete / failed`
+- [ ] Job lifecycle: `pending → validating → extracting → synthesizing → complete / failed`
 - [x] Expose status endpoint (`GET /api/jobs/{id}`) for frontend polling
 - [x] Cache check — same URL returns existing completed job
-- [x] Periodic cleanup of expired media (Celery beat, 24h TTL)
+- [ ] No large media files to clean up — only lightweight transcript/metadata stored
 
-**Deliverable:** Given a TikTok/IG URL, the system downloads the video, extracts audio + frames + metadata, and reports job status.
+**Deliverable:** Given a TikTok/IG URL, the system extracts captions, metadata, and a cleaned transcript without downloading the video.
 
 ---
 
 ## Phase 3: AI-Powered Recipe Extraction
 
-### 3.1 — Audio Transcription
-- [x] Send extracted audio to Whisper (local model or API)
-- [x] Handle multiple languages — detect language and transcribe accordingly
-- [x] Clean up transcript: remove filler words, normalize measurements ("a cup" → "1 cup")
-- [x] Store raw and cleaned transcripts
-
-### 3.2 — Visual Analysis
-- [x] Send sampled key frames to Claude (vision capability)
-- [x] Prompt the model to identify: ingredients visible on screen, cooking techniques, equipment used, plating/presentation
-- [x] Correlate visual observations with transcript timestamps
-
-### 3.3 — Recipe Synthesis (Core LLM Pipeline)
-- [x] Combine transcript + visual analysis + video metadata (caption, hashtags) into a single context
-- [x] Send to Claude API with a structured prompt requesting:
+### 3.1 — Recipe Synthesis (Single LLM Call)
+- [ ] Combine cleaned transcript + video metadata (caption, hashtags, creator) into a single context
+- [ ] Send to Claude API with a structured prompt requesting:
   - **Recipe title** (inferred from content)
   - **Servings estimate**
   - **Prep time / Cook time estimates**
@@ -115,15 +104,18 @@
   - **Step-by-step instructions** (numbered, clear, actionable)
   - **Difficulty level** (easy / medium / hard)
   - **Cuisine tags** (e.g., Italian, Korean, Mexican)
-- [x] Use structured output (JSON mode) to ensure consistent parsing
-- [x] Implement validation: check that all mentioned ingredients appear in steps, flag inconsistencies
+- [ ] Use structured output (JSON mode) to ensure consistent parsing
+- [ ] Implement validation: check that all mentioned ingredients appear in steps, flag inconsistencies
+- [ ] Handle edge cases: transcript-only mode (no captions), description-only mode (no transcript)
 
-### 3.4 — Confidence Scoring & Human Review Flags
-- [x] Assign confidence scores to extracted fields (high/medium/low)
-- [x] Flag recipes where the AI is uncertain (e.g., quantities unclear, steps ambiguous)
+### 3.2 — Confidence Scoring & Human Review Flags
+- [ ] Assign confidence scores to extracted fields (high/medium/low)
+- [ ] Lower confidence when working from auto-captions vs manual captions
+- [ ] Lower confidence when working from description-only (no transcript available)
+- [ ] Flag recipes where the AI is uncertain (e.g., quantities unclear, steps ambiguous)
 - [ ] Allow users to report errors or suggest edits (future feature hook)
 
-**Deliverable:** Given a downloaded video's assets, produce a complete structured recipe in JSON with title, ingredients, steps, and metadata.
+**Deliverable:** Given a transcript and metadata, produce a complete structured recipe in JSON with title, ingredients, steps, and metadata — using a single Claude API call.
 
 ---
 
@@ -239,12 +231,12 @@
 ## Phase 7: Testing & Quality Assurance
 
 ### 7.1 — Unit Tests
-- [ ] Backend: test each service in isolation (URL validator, video downloader, recipe parser, substitution engine)
+- [ ] Backend: test each service in isolation (URL validator, caption extractor, transcript cleaner, recipe parser, substitution engine)
 - [ ] Frontend: component tests with React Testing Library
 - [ ] AI pipeline: snapshot tests comparing LLM output against known-good recipes for a set of reference videos
 
 ### 7.2 — Integration Tests
-- [ ] End-to-end flow: URL input → video download → AI extraction → API response → UI render
+- [ ] End-to-end flow: URL input → caption extraction → AI synthesis → API response → UI render
 - [ ] Database migration tests
 - [ ] Auth flow tests (signup, login, token refresh, guest mode)
 
@@ -255,7 +247,7 @@
 - [ ] Track quality metrics over time as prompts evolve
 
 ### 7.4 — Performance & Load Testing
-- [ ] Benchmark video download + processing pipeline (target: < 60s for a 60s video)
+- [ ] Benchmark caption extraction + synthesis pipeline (target: < 15s per recipe)
 - [ ] Load test API endpoints (target: 100 concurrent users)
 - [ ] Monitor LLM API latency and cost per recipe
 
@@ -363,8 +355,8 @@
 | Phase | Focus | Est. Duration |
 |-------|-------|---------------|
 | 1 | Project Setup & Foundation | 1 week |
-| 2 | Video Ingestion Pipeline | 2 weeks |
-| 3 | AI Recipe Extraction | 2 weeks |
+| 2 | Metadata & Transcript Extraction | 1 week |
+| 3 | AI Recipe Extraction | 1 week |
 | 4 | Ingredient Substitutions | 1 week |
 | 5 | Backend API | 1.5 weeks |
 | 6 | Frontend Mobile UI | 2.5 weeks |
@@ -373,7 +365,7 @@
 | 9 | Polish & Launch Prep | 1.5 weeks |
 | 10 | Post-Launch Iteration | Ongoing |
 
-**Total to MVP launch: ~14 weeks**
+**Total to MVP launch: ~12 weeks**
 
 ---
 

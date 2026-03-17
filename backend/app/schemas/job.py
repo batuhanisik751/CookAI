@@ -12,9 +12,11 @@ class VideoURLRequest(BaseModel):
 
 class VideoMetadata(BaseModel):
     duration_seconds: float | None = None
-    resolution: str | None = None
     creator_handle: str | None = None
     caption: str | None = None
+    title: str | None = None
+    description: str | None = None
+    hashtags: list[str] | None = None
     thumbnail_url: str | None = None
 
 

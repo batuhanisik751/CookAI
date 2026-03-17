@@ -6,13 +6,12 @@ import anthropic
 
 from app.core.config import settings
 from app.schemas.recipe import LLMRecipeOutput
-from app.services.visual_analyzer import VisualAnalysis
 
 logger = logging.getLogger(__name__)
 
 _SYNTHESIS_SYSTEM_PROMPT = """\
 You are a culinary AI assistant that extracts structured recipes from cooking \
-video transcripts and visual analysis. Your task is to produce a complete, \
+video transcripts and metadata. Your task is to produce a complete, \
 accurate recipe in JSON format.
 
 You MUST respond with ONLY valid JSON matching this exact schema:
@@ -81,13 +80,13 @@ class SynthesisResult:
 
 def synthesize_recipe(
     transcript: str,
-    visual_analysis: VisualAnalysis,
     metadata: dict,
+    caption_source: str = "auto",
 ) -> SynthesisResult:
-    """Combine transcript + visual analysis + metadata and synthesize a recipe."""
-    prompt = _build_synthesis_prompt(transcript, visual_analysis, metadata)
+    """Combine transcript + metadata and synthesize a recipe via Claude."""
+    prompt = _build_synthesis_prompt(transcript, metadata, caption_source)
 
-    logger.info("Synthesizing recipe from transcript and visual analysis")
+    logger.info("Synthesizing recipe from transcript (source=%s)", caption_source)
 
     try:
         client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
@@ -127,8 +126,16 @@ def synthesize_recipe(
     validation_flags = _validate_recipe(recipe)
     all_flags = recipe.review_flags + validation_flags
 
+    # Auto-flag description-only recipes
+    if caption_source == "description_only":
+        all_flags.append("Recipe extracted from video description only (no transcript)")
+
     # Determine if review is needed
-    needs_review = bool(all_flags) or _has_low_confidence(recipe)
+    needs_review = (
+        bool(all_flags)
+        or _has_low_confidence(recipe)
+        or caption_source == "description_only"
+    )
 
     logger.info(
         "Recipe synthesized: title=%s, needs_review=%s, flags=%d",
@@ -146,8 +153,8 @@ def synthesize_recipe(
 
 def _build_synthesis_prompt(
     transcript: str,
-    visual_analysis: VisualAnalysis,
     metadata: dict,
+    caption_source: str,
 ) -> str:
     """Build the user prompt with all available context."""
     sections = []
@@ -155,40 +162,38 @@ def _build_synthesis_prompt(
     # Video metadata
     caption = metadata.get("caption", "")
     creator = metadata.get("creator_handle", "")
-    if caption or creator:
+    description = metadata.get("description", "")
+    hashtags = metadata.get("hashtags", [])
+
+    if caption or creator or description or hashtags:
         meta_parts = []
         if creator:
             meta_parts.append(f"Creator: {creator}")
         if caption:
             meta_parts.append(f"Caption: {caption}")
+        if description and description != caption:
+            meta_parts.append(f"Description: {description}")
+        if hashtags:
+            meta_parts.append(f"Hashtags: {', '.join(hashtags[:20])}")
         sections.append("## Video Info\n" + "\n".join(meta_parts))
+
+    # Caption source quality note
+    if caption_source == "auto":
+        sections.append(
+            "## Note\n"
+            "The transcript below comes from auto-generated captions and may "
+            "contain errors, especially for cooking terms and measurements."
+        )
+    elif caption_source == "description_only":
+        sections.append(
+            "## Note\n"
+            "No spoken transcript was available for this video. The text below "
+            "is from the video description only. Extract what recipe information "
+            "you can, but be conservative with confidence scores."
+        )
 
     # Transcript
     sections.append(f"## Transcript\n{transcript}")
-
-    # Visual analysis
-    if visual_analysis.ingredients_observed:
-        sections.append(
-            "## Ingredients Seen in Video\n"
-            + ", ".join(visual_analysis.ingredients_observed)
-        )
-    if visual_analysis.techniques_observed:
-        sections.append(
-            "## Cooking Techniques Observed\n"
-            + ", ".join(visual_analysis.techniques_observed)
-        )
-    if visual_analysis.equipment_observed:
-        sections.append(
-            "## Equipment Used\n" + ", ".join(visual_analysis.equipment_observed)
-        )
-    if visual_analysis.plating_notes:
-        sections.append(f"## Plating/Presentation\n{visual_analysis.plating_notes}")
-    if visual_analysis.frame_observations:
-        obs_lines = [
-            f"- Frame {o.get('frame_index', '?')}: {o.get('description', '')}"
-            for o in visual_analysis.frame_observations
-        ]
-        sections.append("## Frame-by-Frame Observations\n" + "\n".join(obs_lines))
 
     sections.append(
         "## Task\n"

@@ -18,20 +18,20 @@
 - **Node.js:** 18+ — managed via nvm recommended
 - **Backend deps:** `cd backend && pip install -r requirements.txt`
 - **Frontend deps:** `cd frontend && npm install`
-- **System deps:** FFmpeg (`brew install ffmpeg`), yt-dlp (`pip install yt-dlp`)
+- **System deps:** yt-dlp (`pip install yt-dlp`)
 - **Database:** `docker compose up -d` then `cd backend && alembic upgrade head`
 - **Environment variables:** Copy `.env.example` to `.env` and fill in values
 
 ## Tech Stack
-Python (FastAPI) | React Native (Expo) | TypeScript | PostgreSQL | Redis | SQLAlchemy + Alembic | Celery | Claude API (Anthropic) | yt-dlp | FFmpeg | Whisper | Docker
+Python (FastAPI) | React Native (Expo) | TypeScript | PostgreSQL | Redis | SQLAlchemy + Alembic | Celery | Claude API (Anthropic) | yt-dlp | Docker
 
 ## Architecture
 - `backend/app/api/` — REST endpoints (recipes, users, preferences, substitutions)
-- `backend/app/services/` — business logic (video download, media extraction, transcription, recipe synthesis, substitution engine)
+- `backend/app/services/` — business logic (caption extraction, recipe synthesis, substitution engine)
 - `backend/app/models/` — SQLAlchemy models (users, recipes, ingredients, steps, substitutions)
 - `backend/app/schemas/` — Pydantic schemas for request/response validation
 - `backend/app/core/` — config, auth, logging, rate limiting
-- `backend/app/workers/` — Celery tasks for async video processing pipeline
+- `backend/app/workers/` — Celery tasks for async caption extraction and recipe synthesis pipeline
 - `backend/alembic/` — database migration files
 - `backend/tests/` — pytest tests mirroring `app/` structure
 - `frontend/src/screens/` — app screens (Home, Steps, Ingredients, RecipeDetail, SavedRecipes)
@@ -49,7 +49,7 @@ Python (FastAPI) | React Native (Expo) | TypeScript | PostgreSQL | Redis | SQLAl
 - **Backend:** pytest with fixtures defined in `conftest.py`. Test files mirror source structure in `backend/tests/`
 - **Frontend:** Jest + React Testing Library. Test files live next to source as `*.test.ts(x)`
 - **Naming:** test functions use `test_<what_it_does>` (backend) or `it("should <behavior>")` (frontend)
-- **Mocking:** mock external dependencies (Claude API, database sessions, Redis, yt-dlp, FFmpeg) — never make real API calls in tests
+- **Mocking:** mock external dependencies (Claude API, database sessions, Redis, yt-dlp) — never make real API calls in tests
 - **Fixtures:** use pytest fixtures for reusable test data (sample recipes, mock users, fake video metadata)
 - **Coverage:** aim for >80% on new code; every new feature or change must include tests
 
@@ -65,7 +65,7 @@ Python (FastAPI) | React Native (Expo) | TypeScript | PostgreSQL | Redis | SQLAl
 - All user input must be validated before processing (Pydantic on backend, Zod on frontend)
 - Rate limit AI API calls — track token usage and cost per recipe
 - Cache repeated recipe extractions (same URL → same recipe)
-- Video files are temporary — always clean up after processing
+- Temporary subtitle files are cleaned up after processing
 - NEVER bypass authentication or authorization checks
 
 ## Subagents
@@ -77,7 +77,7 @@ All custom subagents live in `.claude/agents/`. Use them to keep the main contex
 | `pre-change` | **Before every code change.** Identifies affected files, existing tests, dependencies, and risks. |
 | `post-change` | **After every code change.** Runs tests, checks regressions, writes missing tests, and produces a commit message. |
 | `test-runner` | Quick test verification without full post-change review. Use to check if a specific test passes. |
-| `security-reviewer` | When touching auth, URL handling, subprocess calls (yt-dlp/FFmpeg), or any user-input processing. Reviews for injection, SSRF, data exposure. |
+| `security-reviewer` | When touching auth, URL handling, subprocess calls (yt-dlp), or any user-input processing. Reviews for injection, SSRF, data exposure. |
 
 ## Workflow
 - IMPORTANT: Only do what is explicitly asked. Do NOT add extra features, refactors, or improvements beyond the request.

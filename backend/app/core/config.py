@@ -27,9 +27,6 @@ class Settings(BaseSettings):
     # Anthropic
     anthropic_api_key: str = ""
 
-    # OpenAI (Whisper)
-    openai_api_key: str = ""
-
     # CORS
     cors_origins: str = "http://localhost:8081,http://localhost:19006"
 
@@ -37,23 +34,15 @@ class Settings(BaseSettings):
     max_video_duration_seconds: int = 300
     temp_media_dir: str = "./tmp/media"
 
-    # Video download
-    max_download_retries: int = 3
-    max_concurrent_downloads: int = 3
+    # Caption extraction
     download_timeout_seconds: int = 60
-    download_rate_limit_per_minute: int = 10
-
-    # Media extraction
-    frame_extraction_fps: int = 1
-    audio_sample_rate: int = 16000
+    subtitle_langs: str = "en,en-US,en-orig"
+    subtitle_format: str = "vtt"
 
     # AI models
-    whisper_model: str = "whisper-1"
-    max_vision_frames: int = 15
     claude_model: str = "claude-sonnet-4-20250514"
-    claude_vision_model: str = "claude-sonnet-4-20250514"
     max_recipe_tokens: int = 4096
-    transcription_timeout_seconds: int = 120
+    max_substitution_tokens: int = 4096
 
     # Cleanup
     media_ttl_hours: int = 24

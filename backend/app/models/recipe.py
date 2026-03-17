@@ -24,6 +24,7 @@ class Recipe(UUIDMixin, TimestampMixin, Base):
     raw_transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
     cleaned_transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
     visual_analysis: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    caption_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
     confidence: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     needs_review: Mapped[bool] = mapped_column(Boolean, default=False)
     review_flags: Mapped[list | None] = mapped_column(JSON, nullable=True)
@@ -41,6 +42,10 @@ class Recipe(UUIDMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
         order_by="Step.step_number",
     )
+    substitutions: Mapped[list["IngredientSubstitution"]] = relationship(  # noqa: F821
+        back_populates="recipe",
+        cascade="all, delete-orphan",
+    )
 
 
 class Ingredient(UUIDMixin, TimestampMixin, Base):
@@ -57,6 +62,10 @@ class Ingredient(UUIDMixin, TimestampMixin, Base):
     confidence: Mapped[str] = mapped_column(String(10), default="high")
 
     recipe: Mapped["Recipe"] = relationship(back_populates="ingredients")
+    substitutions: Mapped[list["IngredientSubstitution"]] = relationship(  # noqa: F821
+        back_populates="ingredient",
+        cascade="all, delete-orphan",
+    )
 
 
 class Step(UUIDMixin, TimestampMixin, Base):

@@ -21,7 +21,6 @@ passlib[bcrypt]>=1.7.0,<2.0.0
 
 # AI
 anthropic>=0.40.0,<1.0.0
-openai>=1.0.0,<2.0.0
 
 # Video processing
 yt-dlp>=2024.0.0

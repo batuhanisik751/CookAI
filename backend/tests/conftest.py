@@ -106,29 +106,21 @@ def tmp_media_dir(tmp_path):
 
 @pytest.fixture
 def mock_ytdlp():
-    with patch("app.services.video_downloader.yt_dlp.YoutubeDL") as mock:
+    with patch("app.services.caption_extractor.yt_dlp.YoutubeDL") as mock:
         instance = MagicMock()
         mock.return_value.__enter__ = MagicMock(return_value=instance)
         mock.return_value.__exit__ = MagicMock(return_value=False)
         instance.extract_info.return_value = {
             "duration": 30,
-            "width": 1080,
-            "height": 1920,
             "uploader": "cookingwithme",
+            "title": "Easy pasta recipe!",
             "description": "Easy pasta recipe!",
             "thumbnail": "https://example.com/thumb.jpg",
+            "tags": ["pasta"],
+            "subtitles": {"en": [{"ext": "vtt"}]},
+            "automatic_captions": {},
         }
         yield instance
-
-
-@pytest.fixture
-def mock_ffmpeg():
-    with patch("app.services.media_extractor.asyncio.create_subprocess_exec") as mock:
-        process = AsyncMock()
-        process.communicate.return_value = (b"{}", b"")
-        process.returncode = 0
-        mock.return_value = process
-        yield mock
 
 
 @pytest.fixture

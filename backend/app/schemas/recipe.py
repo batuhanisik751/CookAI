@@ -41,6 +41,7 @@ class RecipeResponse(BaseModel):
     difficulty: str | None = None
     cuisine_tags: list[str] | None = None
     language: str | None = None
+    caption_source: str | None = None
     ingredients: list[IngredientSchema]
     steps: list[StepSchema]
     confidence: ConfidenceScores | None = None

@@ -17,7 +17,6 @@ from app.services.recipe_synthesizer import (
     _validate_recipe,
     synthesize_recipe,
 )
-from app.services.visual_analyzer import VisualAnalysis
 
 
 @pytest.fixture
@@ -90,19 +89,6 @@ def sample_llm_output():
 
 
 @pytest.fixture
-def sample_visual_analysis():
-    return VisualAnalysis(
-        ingredients_observed=["flour", "eggs", "milk", "butter"],
-        techniques_observed=["mixing", "pan-frying"],
-        equipment_observed=["mixing bowl", "griddle", "spatula"],
-        plating_notes="Stacked pancakes with maple syrup",
-        frame_observations=[
-            {"frame_index": 0, "description": "Ingredients on counter"},
-        ],
-    )
-
-
-@pytest.fixture
 def sample_metadata():
     return {
         "caption": "Easy pancake recipe! #breakfast #cooking",
@@ -126,13 +112,12 @@ class TestSynthesizeRecipe:
     def test_success(
         self,
         mock_claude_synthesis,
-        sample_visual_analysis,
         sample_metadata,
     ):
         result = synthesize_recipe(
             transcript="Mix flour eggs and milk, melt butter, cook on griddle",
-            visual_analysis=sample_visual_analysis,
             metadata=sample_metadata,
+            caption_source="manual",
         )
 
         assert isinstance(result, SynthesisResult)
@@ -142,7 +127,7 @@ class TestSynthesizeRecipe:
         assert result.recipe_data.difficulty == "easy"
         mock_claude_synthesis.messages.create.assert_called_once()
 
-    def test_api_error(self, sample_visual_analysis, sample_metadata):
+    def test_api_error(self, sample_metadata):
         with patch("app.services.recipe_synthesizer.anthropic.Anthropic") as mock_cls:
             client = MagicMock()
             mock_cls.return_value = client
@@ -153,10 +138,10 @@ class TestSynthesizeRecipe:
             )
 
             with pytest.raises(RecipeSynthesisError) as exc_info:
-                synthesize_recipe("transcript", sample_visual_analysis, sample_metadata)
+                synthesize_recipe("transcript", sample_metadata, caption_source="auto")
             assert exc_info.value.code == "SYNTHESIS_API_ERROR"
 
-    def test_timeout(self, sample_visual_analysis, sample_metadata):
+    def test_timeout(self, sample_metadata):
         with patch("app.services.recipe_synthesizer.anthropic.Anthropic") as mock_cls:
             client = MagicMock()
             mock_cls.return_value = client
@@ -165,10 +150,10 @@ class TestSynthesizeRecipe:
             )
 
             with pytest.raises(RecipeSynthesisError) as exc_info:
-                synthesize_recipe("transcript", sample_visual_analysis, sample_metadata)
+                synthesize_recipe("transcript", sample_metadata, caption_source="auto")
             assert exc_info.value.code == "SYNTHESIS_TIMEOUT"
 
-    def test_invalid_json_response(self, sample_visual_analysis, sample_metadata):
+    def test_invalid_json_response(self, sample_metadata):
         with patch("app.services.recipe_synthesizer.anthropic.Anthropic") as mock_cls:
             client = MagicMock()
             mock_cls.return_value = client
@@ -177,13 +162,12 @@ class TestSynthesizeRecipe:
             client.messages.create.return_value = response
 
             with pytest.raises(RecipeSynthesisError) as exc_info:
-                synthesize_recipe("transcript", sample_visual_analysis, sample_metadata)
+                synthesize_recipe("transcript", sample_metadata, caption_source="auto")
             assert exc_info.value.code == "SYNTHESIS_PARSE_ERROR"
 
     def test_needs_review_when_low_confidence(
         self,
         sample_llm_output,
-        sample_visual_analysis,
         sample_metadata,
     ):
         sample_llm_output["confidence"]["overall"] = "low"
@@ -196,9 +180,23 @@ class TestSynthesizeRecipe:
             client.messages.create.return_value = response
 
             result = synthesize_recipe(
-                "transcript", sample_visual_analysis, sample_metadata
+                "transcript", sample_metadata, caption_source="auto"
             )
             assert result.needs_review is True
+
+    def test_description_only_forces_review(
+        self,
+        mock_claude_synthesis,
+        sample_metadata,
+    ):
+        result = synthesize_recipe(
+            transcript="Quick pasta recipe with garlic",
+            metadata=sample_metadata,
+            caption_source="description_only",
+        )
+
+        assert result.needs_review is True
+        assert any("description only" in f.lower() for f in result.review_flags)
 
 
 class TestValidateRecipe:
