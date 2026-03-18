@@ -6,14 +6,14 @@
 
 ## Current Status
 
-**Active Phase:** Phase 2 — Reworking pipeline to caption-only extraction (no video download)
+**Active Phase:** Phase 4 — Ingredient Substitution Engine
 
 | Phase | Status |
 |-------|--------|
-| 1. Project Setup & Foundation | Complete |
-| 2. Metadata & Transcript Extraction | Needs Rework (switching from video download to caption-only) |
-| 3. AI-Powered Recipe Extraction | Needs Rework (removing visual analysis, single LLM call) |
-| 4. Ingredient Substitution Engine | Not Started |
+| 1. Project Setup & Foundation | Complete (CI/CD deferred) |
+| 2. Caption & Metadata Extraction | Complete (retry logic pending) |
+| 3. AI-Powered Recipe Extraction | Complete (error reporting & native structured output pending) |
+| 4. Ingredient Substitution Engine | Complete |
 | 5. Backend API Design & Implementation | Not Started |
 | 6. Frontend — Mobile UI | Not Started |
 | 7. Testing & Quality Assurance | Not Started |
@@ -57,7 +57,7 @@
 
 ---
 
-## Phase 2: Metadata & Transcript Extraction
+## Phase 2: Caption & Metadata Extraction
 
 ### 2.1 — Video URL Input & Validation
 - [x] Accept TikTok and Instagram Reels URLs
@@ -66,37 +66,37 @@
 - [x] Return clear error messages for unsupported or invalid URLs
 - [x] SSRF prevention (hostname allowlist, private IP rejection)
 
-### 2.2 — Caption & Metadata Extraction (Replaces Video Download)
-- [ ] Use `yt-dlp` with `--write-subs --write-auto-subs --skip-download` to extract captions without downloading video
-- [ ] Extract video metadata: title, creator handle, description/caption text, hashtags, duration
-- [ ] Handle platform-specific subtitle formats (SRT, VTT, JSON) and normalize to plain text
-- [ ] Fallback chain: manual captions → auto-generated captions → description-only mode
+### 2.2 — Platform Auto-Transcript Extraction (No Video Download)
+- [x] Use `yt-dlp` with `--write-subs --write-auto-subs --skip-download` to pull platform-generated captions
+- [x] Extract video metadata: title, creator handle, description/caption text, hashtags, duration
+- [x] Handle platform-specific subtitle formats (SRT, VTT, JSON) and normalize to plain text
+- [x] Fallback chain: manual captions → auto-generated captions → description-only mode
 - [ ] Retry logic with exponential backoff for transient failures
-- [ ] Duration check — reject videos exceeding 300s limit (from metadata, no download needed)
+- [x] Duration check — reject videos exceeding 300s limit (from metadata, no download needed)
 
 ### 2.3 — Transcript Cleanup
-- [ ] Parse and merge subtitle segments into a continuous transcript
-- [ ] Remove duplicate/overlapping subtitle segments
-- [ ] Clean up auto-caption artifacts: filler words, timing stutters, misheard cooking terms
-- [ ] Normalize measurements ("a cup" → "1 cup", "half a teaspoon" → "1/2 tsp")
-- [ ] Store raw and cleaned transcripts
+- [x] Parse and merge subtitle segments into a continuous transcript
+- [x] Remove duplicate/overlapping subtitle segments
+- [x] Clean up auto-caption artifacts: filler words, timing stutters, misheard cooking terms
+- [x] Normalize measurements ("a cup" → "1 cup", "half a teaspoon" → "1/2 tsp")
+- [x] Store raw and cleaned transcripts
 
 ### 2.4 — Job Queue & Status Tracking
 - [x] Use Celery with Redis as message broker for async job processing
-- [ ] Job lifecycle: `pending → validating → extracting → synthesizing → complete / failed`
+- [x] Job lifecycle: `pending → validating → extracting → synthesizing → complete / failed`
 - [x] Expose status endpoint (`GET /api/jobs/{id}`) for frontend polling
 - [x] Cache check — same URL returns existing completed job
-- [ ] No large media files to clean up — only lightweight transcript/metadata stored
+- [x] No large media files to clean up — only lightweight transcript/metadata stored
 
-**Deliverable:** Given a TikTok/IG URL, the system extracts captions, metadata, and a cleaned transcript without downloading the video.
+**Deliverable:** Given a TikTok/IG URL, the system extracts platform auto-transcripts and metadata without downloading any video.
 
 ---
 
 ## Phase 3: AI-Powered Recipe Extraction
 
 ### 3.1 — Recipe Synthesis (Single LLM Call)
-- [ ] Combine cleaned transcript + video metadata (caption, hashtags, creator) into a single context
-- [ ] Send to Claude API with a structured prompt requesting:
+- [x] Combine cleaned transcript + video metadata (caption, hashtags, creator) into a single context
+- [x] Send to Claude API with a structured prompt requesting:
   - **Recipe title** (inferred from content)
   - **Servings estimate**
   - **Prep time / Cook time estimates**
@@ -104,15 +104,15 @@
   - **Step-by-step instructions** (numbered, clear, actionable)
   - **Difficulty level** (easy / medium / hard)
   - **Cuisine tags** (e.g., Italian, Korean, Mexican)
-- [ ] Use structured output (JSON mode) to ensure consistent parsing
-- [ ] Implement validation: check that all mentioned ingredients appear in steps, flag inconsistencies
-- [ ] Handle edge cases: transcript-only mode (no captions), description-only mode (no transcript)
+- [x] Use structured output (prompt-based JSON + Pydantic validation)
+- [x] Implement validation: check that all mentioned ingredients appear in steps, flag inconsistencies
+- [x] Handle edge cases: transcript-only mode (no captions), description-only mode (no transcript)
 
 ### 3.2 — Confidence Scoring & Human Review Flags
-- [ ] Assign confidence scores to extracted fields (high/medium/low)
-- [ ] Lower confidence when working from auto-captions vs manual captions
-- [ ] Lower confidence when working from description-only (no transcript available)
-- [ ] Flag recipes where the AI is uncertain (e.g., quantities unclear, steps ambiguous)
+- [x] Assign confidence scores to extracted fields (high/medium/low)
+- [x] Lower confidence when working from auto-captions vs manual captions (via prompt guidance)
+- [x] Lower confidence when working from description-only (via prompt guidance + `needs_review` flag)
+- [x] Flag recipes where the AI is uncertain (e.g., quantities unclear, steps ambiguous)
 - [ ] Allow users to report errors or suggest edits (future feature hook)
 
 **Deliverable:** Given a transcript and metadata, produce a complete structured recipe in JSON with title, ingredients, steps, and metadata — using a single Claude API call.
@@ -122,26 +122,26 @@
 ## Phase 4: Ingredient Substitution Engine
 
 ### 4.1 — Substitution Knowledge Base
-- [ ] Build or source a substitution dataset (e.g., butter → coconut oil, heavy cream → coconut cream)
-- [ ] Categorize substitutions by: dietary restriction (vegan, gluten-free, dairy-free, nut-free), availability (common pantry items), flavor profile similarity
-- [ ] Store in a searchable format (Postgres table)
+- [x] Build or source a substitution dataset (e.g., butter → coconut oil, heavy cream → coconut cream)
+- [x] Categorize substitutions by: dietary restriction (vegan, gluten-free, dairy-free, nut-free), availability (common pantry items), flavor profile similarity
+- [x] Store in a searchable format (Postgres table)
 
 ### 4.2 — Context-Aware Substitution via LLM
-- [ ] For each ingredient in the extracted recipe, query Claude for substitutions considering:
+- [x] For each ingredient in the extracted recipe, query Claude for substitutions considering:
   - The role of the ingredient in the recipe (structural, flavor, moisture, leavening)
   - How the substitution affects cooking technique or timing
   - Ratio adjustments (e.g., "use 3/4 cup applesauce instead of 1 cup sugar")
-- [ ] Return substitutions with notes explaining trade-offs
+- [x] Return substitutions with notes explaining trade-offs
 
 ### 4.3 — User Preference Integration
-- [ ] Allow users to set dietary preferences / allergies in their profile
-- [ ] Auto-highlight ingredients that conflict with preferences
-- [ ] Pre-populate substitution suggestions based on user profile
+- [x] Allow users to set dietary preferences / allergies in their profile
+- [x] Auto-highlight ingredients that conflict with preferences
+- [x] Pre-populate substitution suggestions based on user profile
 
 ### 4.4 — "What's in My Pantry" Mode (Stretch)
-- [ ] Users input ingredients they have on hand
-- [ ] System highlights which recipe ingredients they already have
-- [ ] Suggests substitutions only for missing items
+- [x] Users input ingredients they have on hand
+- [x] System highlights which recipe ingredients they already have
+- [x] Suggests substitutions only for missing items
 
 **Deliverable:** Each recipe includes per-ingredient substitution suggestions, personalized to user preferences.
 
